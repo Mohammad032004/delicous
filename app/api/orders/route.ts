@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 
+import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Table from "@/models/Table";
 import MenuItem from "@/models/MenuItem";
@@ -12,14 +13,83 @@ interface OrderRequestItem {
   notes?: string;
 }
 
+/**
+ * GET
+ * Restaurant dashboard:
+ * Returns all orders belonging to the
+ * currently logged-in restaurant.
+ */
+export async function GET() {
+  try {
+    const session = await auth();
+
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+
+    if (!session.user.restaurantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Restaurant not found",
+        },
+        { status: 400 }
+      );
+    }
+
+    await connectDB();
+
+    const orders = await Order.find({
+      restaurantId: session.user.restaurantId,
+    })
+      .populate("tableId", "name number capacity")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return NextResponse.json({
+      success: true,
+      orders,
+    });
+  } catch (error) {
+    console.error("Get orders error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to load orders",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST
+ * Customer places a new order using the table QR code.
+ */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
     const qrToken = String(body.qrToken ?? "").trim();
-    const customerName = String(body.customerName ?? "").trim();
-    const customerPhone = String(body.customerPhone ?? "").trim();
-    const customerNotes = String(body.customerNotes ?? "").trim();
+    const customerName = String(
+      body.customerName ?? ""
+    ).trim();
+    const customerPhone = String(
+      body.customerPhone ?? ""
+    ).trim();
+    const customerNotes = String(
+      body.customerNotes ?? ""
+    ).trim();
 
     const requestedItems = Array.isArray(body.items)
       ? (body.items as OrderRequestItem[])
@@ -63,7 +133,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate item IDs.
+    // Validate item IDs and quantities.
     for (const item of requestedItems) {
       if (
         !mongoose.Types.ObjectId.isValid(
@@ -116,28 +186,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const orderItems = requestedItems.map((requestedItem) => {
-      const menuItem = menuItems.find(
-        (item) =>
-          item._id.toString() === requestedItem.menuItemId
-      );
+    const orderItems = requestedItems.map(
+      (requestedItem) => {
+        const menuItem = menuItems.find(
+          (item) =>
+            item._id.toString() ===
+            requestedItem.menuItemId
+        );
 
-      if (!menuItem) {
-        throw new Error("Menu item not found");
+        if (!menuItem) {
+          throw new Error("Menu item not found");
+        }
+
+        const quantity = requestedItem.quantity;
+        const subtotal = menuItem.price * quantity;
+
+        return {
+          menuItemId: menuItem._id,
+          name: menuItem.name,
+          quantity,
+          price: menuItem.price,
+          subtotal,
+          notes: String(
+            requestedItem.notes ?? ""
+          ).trim(),
+        };
       }
-
-      const quantity = requestedItem.quantity;
-      const subtotal = menuItem.price * quantity;
-
-      return {
-        menuItemId: menuItem._id,
-        name: menuItem.name,
-        quantity,
-        price: menuItem.price,
-        subtotal,
-        notes: String(requestedItem.notes ?? "").trim(),
-      };
-    });
+    );
 
     const subtotal = orderItems.reduce(
       (total, item) => total + item.subtotal,
@@ -156,7 +231,8 @@ export async function POST(request: Request) {
       .select("orderNumber")
       .lean();
 
-    const orderNumber = (lastOrder?.orderNumber ?? 0) + 1;
+    const orderNumber =
+      (lastOrder?.orderNumber ?? 0) + 1;
 
     const order = await Order.create({
       restaurantId: table.restaurantId,
