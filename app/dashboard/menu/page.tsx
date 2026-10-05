@@ -7,11 +7,16 @@ import {
   Loader2,
   Leaf,
   Star,
+  FolderPlus,
+  Trash2,
 } from "lucide-react";
 
 interface Category {
   _id: string;
   name: string;
+  description?: string;
+  sortOrder: number;
+  isActive: boolean;
 }
 
 interface MenuItem {
@@ -35,49 +40,70 @@ export default function MenuPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
 
+  // Category form
+  const [categoryName, setCategoryName] = useState("");
+  const [categoryDescription, setCategoryDescription] =
+    useState("");
+  const [creatingCategory, setCreatingCategory] =
+    useState(false);
+
+  // Menu item form
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [price, setPrice] = useState("");
-  const [preparationTime, setPreparationTime] = useState("15");
-
+  const [preparationTime, setPreparationTime] =
+    useState("15");
   const [isVeg, setIsVeg] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
 
+  // State
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [categoryError, setCategoryError] =
+    useState("");
 
   async function loadData() {
     try {
       setLoading(true);
       setError("");
 
-      const [categoriesResponse, menuResponse] = await Promise.all([
-        fetch("/api/categories"),
-        fetch("/api/menu-items"),
-      ]);
+      const [categoriesResponse, menuResponse] =
+        await Promise.all([
+          fetch("/api/categories"),
+          fetch("/api/menu-items"),
+        ]);
 
-      const categoriesData = await categoriesResponse.json();
+      const categoriesData =
+        await categoriesResponse.json();
+
       const menuData = await menuResponse.json();
 
       if (!categoriesResponse.ok) {
         throw new Error(
-          categoriesData.message || "Failed to load categories"
+          categoriesData.message ||
+            "Failed to load categories"
         );
       }
 
       if (!menuResponse.ok) {
         throw new Error(
-          menuData.message || "Failed to load menu items"
+          menuData.message ||
+            "Failed to load menu items"
         );
       }
 
-      setCategories(categoriesData.categories);
-      setMenuItems(menuData.menuItems);
+      setCategories(categoriesData.categories || []);
+      setMenuItems(menuData.menuItems || []);
 
-      if (!categoryId && categoriesData.categories.length > 0) {
-        setCategoryId(categoriesData.categories[0]._id);
+      if (
+        !categoryId &&
+        categoriesData.categories?.length > 0
+      ) {
+        setCategoryId(
+          categoriesData.categories[0]._id
+        );
       }
     } catch (error) {
       setError(
@@ -94,29 +120,86 @@ export default function MenuPage() {
     loadData();
   }, []);
 
+  async function handleCreateCategory(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    if (!categoryName.trim()) {
+      setCategoryError("Category name is required.");
+      return;
+    }
+
+    try {
+      setCreatingCategory(true);
+      setCategoryError("");
+      setError("");
+
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: categoryName.trim(),
+          description: categoryDescription.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to create category"
+        );
+      }
+
+      const newCategory = data.category;
+
+      setCategories((current) => [
+        ...current,
+        newCategory,
+      ]);
+
+      setCategoryId(newCategory._id);
+
+      setCategoryName("");
+      setCategoryDescription("");
+    } catch (error) {
+      setCategoryError(
+        error instanceof Error
+          ? error.message
+          : "Failed to create category"
+      );
+    } finally {
+      setCreatingCategory(false);
+    }
+  }
+
   async function handleCreateItem(
     event: React.FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
+    setError("");
+
     if (!name.trim()) {
-      setError("Menu item name is required");
+      setError("Menu item name is required.");
       return;
     }
 
     if (!categoryId) {
-      setError("Please select a category");
+      setError("Please select a category.");
       return;
     }
 
     if (!price || Number(price) < 0) {
-      setError("Please enter a valid price");
+      setError("Please enter a valid price.");
       return;
     }
 
     try {
       setCreating(true);
-      setError("");
 
       const response = await fetch("/api/menu-items", {
         method: "POST",
@@ -124,8 +207,8 @@ export default function MenuPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name,
-          description,
+          name: name.trim(),
+          description: description.trim(),
           categoryId,
           price: Number(price),
           preparationTime: Number(preparationTime),
@@ -178,7 +261,7 @@ export default function MenuPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      {/* Header */}
+      {/* HEADER */}
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
@@ -187,27 +270,121 @@ export default function MenuPage() {
             </h1>
 
             <p className="mt-2 text-sm text-slate-500">
-              Manage your restaurant categories and food items.
+              Manage your restaurant categories and food
+              items.
             </p>
           </div>
 
           <div className="hidden rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm sm:block">
             {menuItems.length}{" "}
-            {menuItems.length === 1 ? "item" : "items"}
+            {menuItems.length === 1
+              ? "item"
+              : "items"}
           </div>
         </div>
       </div>
 
-      {/* Warning */}
-      {categories.length === 0 && !loading && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-          Create at least one category before adding menu
-          items.
+      {/* GLOBAL ERROR */}
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
         </div>
       )}
 
+      {/* CATEGORY SECTION */}
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600">
+            <FolderPlus size={20} />
+          </div>
+
+          <div>
+            <h2 className="font-semibold text-slate-900">
+              Menu Categories
+            </h2>
+
+            <p className="text-xs text-slate-500">
+              Create categories for your food items
+            </p>
+          </div>
+        </div>
+
+        <form
+          onSubmit={handleCreateCategory}
+          className="grid gap-4 md:grid-cols-[1fr_1.5fr_auto]"
+        >
+          <input
+            type="text"
+            value={categoryName}
+            onChange={(event) =>
+              setCategoryName(event.target.value)
+            }
+            placeholder="Category name e.g. Biryani"
+            className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+          />
+
+          <input
+            type="text"
+            value={categoryDescription}
+            onChange={(event) =>
+              setCategoryDescription(
+                event.target.value
+              )
+            }
+            placeholder="Description e.g. Rice & biryani dishes"
+            className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+          />
+
+          <button
+            type="submit"
+            disabled={creatingCategory}
+            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {creatingCategory ? (
+              <>
+                <Loader2
+                  size={17}
+                  className="animate-spin"
+                />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Plus size={17} />
+                Add Category
+              </>
+            )}
+          </button>
+        </form>
+
+        {categoryError && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {categoryError}
+          </div>
+        )}
+
+        {/* CATEGORY LIST */}
+        {categories.length > 0 && (
+          <div className="mt-6 flex flex-wrap gap-3">
+            {categories.map((category) => (
+              <div
+                key={category._id}
+                className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2"
+              >
+                <span className="h-2 w-2 rounded-full bg-indigo-500" />
+
+                <span className="text-sm font-medium text-slate-700">
+                  {category.name}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* MAIN CONTENT */}
       <div className="grid gap-6 xl:grid-cols-[400px_1fr]">
-        {/* Add Menu Item */}
+        {/* ADD MENU ITEM */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-6 flex items-center gap-3">
             <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600">
@@ -225,11 +402,18 @@ export default function MenuPage() {
             </div>
           </div>
 
+          {categories.length === 0 && !loading && (
+            <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+              Create at least one category before adding
+              menu items.
+            </div>
+          )}
+
           <form
             onSubmit={handleCreateItem}
             className="space-y-5"
           >
-            {/* Name */}
+            {/* NAME */}
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Item Name
@@ -246,7 +430,7 @@ export default function MenuPage() {
               />
             </div>
 
-            {/* Category */}
+            {/* CATEGORY */}
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Category
@@ -277,7 +461,7 @@ export default function MenuPage() {
               </select>
             </div>
 
-            {/* Price + Preparation */}
+            {/* PRICE + PREP TIME */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -307,7 +491,9 @@ export default function MenuPage() {
                   min="0"
                   value={preparationTime}
                   onChange={(event) =>
-                    setPreparationTime(event.target.value)
+                    setPreparationTime(
+                      event.target.value
+                    )
                   }
                   placeholder="15"
                   className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
@@ -315,7 +501,7 @@ export default function MenuPage() {
               </div>
             </div>
 
-            {/* Description */}
+            {/* DESCRIPTION */}
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Description
@@ -332,7 +518,7 @@ export default function MenuPage() {
               />
             </div>
 
-            {/* Vegetarian */}
+            {/* VEGETARIAN */}
             <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:bg-slate-100">
               <div className="flex items-center gap-3">
                 <div className="rounded-lg bg-emerald-50 p-2">
@@ -363,7 +549,7 @@ export default function MenuPage() {
               />
             </label>
 
-            {/* Featured */}
+            {/* FEATURED */}
             <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:bg-slate-100">
               <div className="flex items-center gap-3">
                 <div className="rounded-lg bg-amber-50 p-2">
@@ -388,24 +574,27 @@ export default function MenuPage() {
                 type="checkbox"
                 checked={isFeatured}
                 onChange={(event) =>
-                  setIsFeatured(event.target.checked)
+                  setIsFeatured(
+                    event.target.checked
+                  )
                 }
                 className="h-4 w-4 accent-indigo-600"
               />
             </label>
 
-            {/* Error */}
+            {/* ERROR */}
             {error && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                 {error}
               </div>
             )}
 
-            {/* Submit */}
+            {/* SUBMIT */}
             <button
               type="submit"
               disabled={
-                creating || categories.length === 0
+                creating ||
+                categories.length === 0
               }
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -427,7 +616,7 @@ export default function MenuPage() {
           </form>
         </div>
 
-        {/* Menu Items */}
+        {/* MENU ITEMS */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div>
