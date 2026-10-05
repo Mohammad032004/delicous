@@ -29,19 +29,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         await connectDB();
 
         const user = await User.findOne({
-          email: credentials.email,
+          email: String(credentials.email).toLowerCase().trim(),
         }).select("+password");
 
-        if (!user) {
-          return null;
-        }
-
-        if (!user.isActive) {
+        if (!user || !user.isActive) {
           return null;
         }
 
         const passwordMatch = await bcrypt.compare(
-          credentials.password as string,
+          String(credentials.password),
           user.password
         );
 
@@ -66,6 +62,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
   pages: {
     signIn: "/login",
+  },
+
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = user.role;
+        token.restaurantId = user.restaurantId;
+      }
+
+      return token;
+    },
+
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub ?? "";
+        session.user.role = token.role;
+        session.user.restaurantId = token.restaurantId;
+      }
+
+      return session;
+    },
   },
 
   secret: process.env.AUTH_SECRET,
