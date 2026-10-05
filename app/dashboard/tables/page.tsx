@@ -7,6 +7,8 @@ import {
   Loader2,
   Users,
   QrCode,
+  X,
+  ExternalLink,
 } from "lucide-react";
 
 interface RestaurantTable {
@@ -23,6 +25,16 @@ interface RestaurantTable {
   isActive: boolean;
 }
 
+interface QRData {
+  table: {
+    id: string;
+    name: string;
+    number: number;
+  };
+  menuUrl: string;
+  qrCode: string;
+}
+
 export default function TablesPage() {
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [number, setNumber] = useState("");
@@ -30,7 +42,10 @@ export default function TablesPage() {
 
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+
   const [error, setError] = useState("");
+  const [qrData, setQrData] = useState<QRData | null>(null);
 
   async function loadTables() {
     try {
@@ -121,7 +136,38 @@ export default function TablesPage() {
     }
   }
 
-  function getStatusClasses(status: RestaurantTable["status"]) {
+  async function handleGenerateQR(tableId: string) {
+    try {
+      setQrLoading(true);
+      setError("");
+
+      const response = await fetch(
+        `/api/tables/${tableId}/qr`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to generate QR"
+        );
+      }
+
+      setQrData(data);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to generate QR"
+      );
+    } finally {
+      setQrLoading(false);
+    }
+  }
+
+  function getStatusClasses(
+    status: RestaurantTable["status"]
+  ) {
     switch (status) {
       case "OCCUPIED":
         return "bg-red-50 text-red-600 border-red-200";
@@ -149,6 +195,13 @@ export default function TablesPage() {
           Manage restaurant tables and QR ordering.
         </p>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         {/* Add Table */}
@@ -206,12 +259,6 @@ export default function TablesPage() {
                 className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
               />
             </div>
-
-            {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                {error}
-              </div>
-            )}
 
             <button
               type="submit"
@@ -305,7 +352,7 @@ export default function TablesPage() {
                     </div>
                   </div>
 
-                  <div className="mt-5 flex items-center justify-between">
+                  <div className="mt-5 flex items-center justify-between gap-2">
                     <span
                       className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getStatusClasses(
                         table.status
@@ -314,10 +361,23 @@ export default function TablesPage() {
                       {table.status.replace("_", " ")}
                     </span>
 
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                      <QrCode size={15} />
-                      QR Ready
-                    </div>
+                    <button
+                      onClick={() =>
+                        handleGenerateQR(table._id)
+                      }
+                      disabled={qrLoading}
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50"
+                    >
+                      {qrLoading ? (
+                        <Loader2
+                          size={14}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <QrCode size={14} />
+                      )}
+                      QR Code
+                    </button>
                   </div>
                 </div>
               ))}
@@ -325,6 +385,56 @@ export default function TablesPage() {
           )}
         </div>
       </div>
+
+      {/* QR Modal */}
+      {qrData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  {qrData.table.name}
+                </h2>
+
+                <p className="text-xs text-slate-500">
+                  Customer ordering QR code
+                </p>
+              </div>
+
+              <button
+                onClick={() => setQrData(null)}
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-5">
+              <img
+                src={qrData.qrCode}
+                alt={`QR code for ${qrData.table.name}`}
+                className="h-64 w-64"
+              />
+            </div>
+
+            <div className="mt-4 rounded-lg bg-slate-50 p-3">
+              <p className="break-all text-center text-xs text-slate-500">
+                {qrData.menuUrl}
+              </p>
+            </div>
+
+            <a
+              href={qrData.menuUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              <ExternalLink size={16} />
+              Open Customer Menu
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
