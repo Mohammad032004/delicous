@@ -22,11 +22,14 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-white/10 bg-slate-900 md:block">
-        <div className="border-b border-white/10 p-6">
-          <h1 className="text-2xl font-bold">Restova</h1>
-          <p className="mt-1 text-xs text-slate-400">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-slate-200 bg-white md:block">
+        <div className="border-b border-slate-200 p-6">
+          <h1 className="text-2xl font-bold text-slate-900">
+            Restova
+          </h1>
+
+          <p className="mt-1 text-xs text-slate-500">
             Restaurant Management
           </p>
         </div>
@@ -69,13 +72,13 @@ export default async function DashboardLayout({
           />
         </nav>
 
-        <div className="absolute bottom-0 w-full border-t border-white/10 p-4">
+        <div className="absolute bottom-0 w-full border-t border-slate-200 p-4">
           <div className="mb-3">
-            <p className="truncate text-sm font-medium">
+            <p className="truncate text-sm font-medium text-slate-900">
               {session.user.name}
             </p>
 
-            <p className="truncate text-xs text-slate-400">
+            <p className="truncate text-xs text-slate-500">
               {session.user.email}
             </p>
           </div>
@@ -88,7 +91,7 @@ export default async function DashboardLayout({
           >
             <button
               type="submit"
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-red-500/10 hover:text-red-400"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-red-50 hover:text-red-600"
             >
               <LogOut size={18} />
               Logout
@@ -98,16 +101,19 @@ export default async function DashboardLayout({
       </aside>
 
       <main className="min-h-screen md:ml-64">
-        <header className="sticky top-0 z-10 border-b border-white/10 bg-slate-950/90 px-6 py-4 backdrop-blur">
+        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-6 py-4 backdrop-blur">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Dashboard</h2>
-              <p className="text-xs text-slate-400">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Dashboard
+              </h2>
+
+              <p className="text-xs text-slate-500">
                 Manage your restaurant
               </p>
             </div>
 
-            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300">
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
               {session.user.role}
             </div>
           </div>
@@ -131,7 +137,7 @@ function NavItem({
   return (
     <a
       href={href}
-      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
     >
       {icon}
       {label}
