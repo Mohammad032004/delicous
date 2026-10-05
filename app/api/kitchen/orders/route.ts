@@ -41,6 +41,7 @@ export async function GET() {
         ],
       },
     })
+      .populate("tableId", "name number capacity")
       .sort({ createdAt: 1 })
       .lean();
 
