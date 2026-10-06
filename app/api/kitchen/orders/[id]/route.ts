@@ -13,6 +13,12 @@ const allowedStatuses: OrderStatus[] = [
   "CANCELLED",
 ];
 
+const allowedRoles = [
+  "KITCHEN",
+  "RESTAURANT_OWNER",
+  "MANAGER",
+];
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -20,10 +26,29 @@ export async function PATCH(
   try {
     const session = await auth();
 
-    if (!session?.user?.restaurantId) {
+    if (!session?.user) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
+      );
+    }
+
+    if (!session.user.restaurantId) {
+      return NextResponse.json(
+        { error: "Restaurant not found" },
+        { status: 400 }
+      );
+    }
+
+    // Only kitchen and management roles can change
+    // kitchen order status.
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          error:
+            "You do not have permission to update kitchen orders",
+        },
+        { status: 403 }
       );
     }
 
@@ -56,11 +81,16 @@ export async function PATCH(
     const currentStatus = order.status;
 
     const validTransition =
-      (currentStatus === "PLACED" && status === "ACCEPTED") ||
-      (currentStatus === "ACCEPTED" && status === "PREPARING") ||
-      (currentStatus === "PREPARING" && status === "READY") ||
-      (currentStatus === "READY" && status === "SERVED") ||
-      (currentStatus === "SERVED" && status === "COMPLETED") ||
+      (currentStatus === "PLACED" &&
+        status === "ACCEPTED") ||
+      (currentStatus === "ACCEPTED" &&
+        status === "PREPARING") ||
+      (currentStatus === "PREPARING" &&
+        status === "READY") ||
+      (currentStatus === "READY" &&
+        status === "SERVED") ||
+      (currentStatus === "SERVED" &&
+        status === "COMPLETED") ||
       status === "CANCELLED";
 
     if (!validTransition) {
@@ -82,10 +112,15 @@ export async function PATCH(
       order,
     });
   } catch (error) {
-    console.error("Kitchen order update error:", error);
+    console.error(
+      "Kitchen order update error:",
+      error
+    );
 
     return NextResponse.json(
-      { error: "Failed to update order status" },
+      {
+        error: "Failed to update order status",
+      },
       { status: 500 }
     );
   }
