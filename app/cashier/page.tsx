@@ -11,11 +11,7 @@ import {
   Wallet,
 } from "lucide-react";
 
-type PaymentMethod =
-  | "CASH"
-  | "UPI"
-  | "CARD"
-  | "OTHER";
+type PaymentMethod = "CASH" | "UPI" | "CARD" | "OTHER";
 
 interface Order {
   _id: string;
@@ -35,7 +31,23 @@ interface Order {
 
 interface Bill {
   _id: string;
-  orderId: string;
+  orderId:
+    | string
+    | {
+        _id: string;
+        orderNumber?: number;
+        status?: string;
+        paymentStatus?: string;
+        customerName?: string;
+        createdAt?: string;
+      };
+  tableId?:
+    | string
+    | {
+        _id?: string;
+        name: string;
+        number: number;
+      };
   billNumber: number;
   subtotal: number;
   tax: number;
@@ -49,21 +61,16 @@ interface Bill {
 
 export default function CashierPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [bills, setBills] = useState<
-    Record<string, Bill>
-  >({});
+  const [bills, setBills] = useState<Record<string, Bill>>({});
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [processingId, setProcessingId] =
-    useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  async function fetchOrders(
-    showLoader = false
-  ) {
+  async function fetchCashierData(showLoader = false) {
     try {
       if (showLoader) {
         setRefreshing(true);
@@ -71,41 +78,61 @@ export default function CashierPage() {
 
       setError("");
 
-      const response = await fetch(
-        "/api/orders",
-        {
+      const [ordersResponse, billsResponse] = await Promise.all([
+        fetch("/api/orders", {
           cache: "no-store",
-        }
-      );
+        }),
+        fetch("/api/bill", {
+          cache: "no-store",
+        }),
+      ]);
 
-      const data = await response.json();
+      const ordersData = await ordersResponse.json();
+      const billsData = await billsResponse.json();
 
-      if (!response.ok) {
+      if (!ordersResponse.ok) {
         throw new Error(
-          data.error ||
-            data.message ||
+          ordersData.error ||
+            ordersData.message ||
             "Failed to load orders"
         );
       }
 
-      const completedOrders = (
-        data.orders || []
-      ).filter(
-        (order: Order) =>
-          order.status === "COMPLETED"
+      if (!billsResponse.ok) {
+        throw new Error(
+          billsData.error ||
+            billsData.message ||
+            "Failed to load bills"
+        );
+      }
+
+      const completedOrders = (ordersData.orders || []).filter(
+        (order: Order) => order.status === "COMPLETED"
       );
 
       setOrders(completedOrders);
+
+      const billMap: Record<string, Bill> = {};
+
+      for (const bill of billsData.bills || []) {
+        const orderId =
+          typeof bill.orderId === "string"
+            ? bill.orderId
+            : bill.orderId?._id;
+
+        if (orderId) {
+          billMap[orderId] = bill;
+        }
+      }
+
+      setBills(billMap);
     } catch (error) {
-      console.error(
-        "Cashier orders error:",
-        error
-      );
+      console.error("Cashier data error:", error);
 
       setError(
         error instanceof Error
           ? error.message
-          : "Failed to load orders"
+          : "Failed to load cashier data"
       );
     } finally {
       setLoading(false);
@@ -114,35 +141,30 @@ export default function CashierPage() {
   }
 
   useEffect(() => {
-    fetchOrders();
+    fetchCashierData();
 
     const interval = setInterval(() => {
-      fetchOrders();
+      fetchCashierData();
     }, 5000);
 
     return () => clearInterval(interval);
   }, []);
 
-  async function generateBill(
-    orderId: string
-  ) {
+  async function generateBill(orderId: string) {
     try {
       setProcessingId(orderId);
       setError("");
       setSuccess("");
 
-      const response = await fetch(
-        "/api/bill",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            orderId,
-          }),
-        }
-      );
+      const response = await fetch("/api/bill", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          orderId,
+        }),
+      });
 
       const data = await response.json();
 
@@ -165,10 +187,7 @@ export default function CashierPage() {
         `Bill #${bill.billNumber} generated successfully.`
       );
     } catch (error) {
-      console.error(
-        "Generate bill error:",
-        error
-      );
+      console.error("Generate bill error:", error);
 
       setError(
         error instanceof Error
@@ -213,8 +232,7 @@ export default function CashierPage() {
         );
       }
 
-      const updatedBill =
-        data.bill as Bill;
+      const updatedBill = data.bill as Bill;
 
       setBills((previous) => ({
         ...previous,
@@ -225,12 +243,9 @@ export default function CashierPage() {
         `Payment recorded successfully using ${paymentMethod}.`
       );
 
-      await fetchOrders();
+      await fetchCashierData();
     } catch (error) {
-      console.error(
-        "Payment error:",
-        error
-      );
+      console.error("Payment error:", error);
 
       setError(
         error instanceof Error
@@ -289,16 +304,14 @@ export default function CashierPage() {
 
           <button
             type="button"
-            onClick={() => fetchOrders(true)}
+            onClick={() => fetchCashierData(true)}
             disabled={refreshing}
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
             <RefreshCw
               size={16}
               className={
-                refreshing
-                  ? "animate-spin"
-                  : ""
+                refreshing ? "animate-spin" : ""
               }
             />
             Refresh
@@ -339,9 +352,7 @@ export default function CashierPage() {
           <StatCard
             title="Paid Orders"
             value={paidOrders.length}
-            icon={
-              <CheckCircle2 size={21} />
-            }
+            icon={<CheckCircle2 size={21} />}
             iconClass="bg-emerald-50 text-emerald-600"
           />
         </div>
@@ -354,8 +365,7 @@ export default function CashierPage() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Generate bills and record customer
-              payments.
+              Generate bills and record customer payments.
             </p>
           </div>
 
@@ -377,16 +387,13 @@ export default function CashierPage() {
           ) : (
             <div className="grid gap-5 lg:grid-cols-2">
               {orders.map((order) => {
-                const bill =
-                  bills[order._id];
+                const bill = bills[order._id];
 
                 const isPaid =
-                  bill?.paymentStatus ===
-                  "PAID";
+                  bill?.paymentStatus === "PAID";
 
                 const isProcessing =
-                  processingId ===
-                  order._id;
+                  processingId === order._id;
 
                 return (
                   <div
@@ -397,14 +404,11 @@ export default function CashierPage() {
                     <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                       <div>
                         <p className="font-bold">
-                          Order #
-                          {order.orderNumber}
+                          Order #{order.orderNumber}
                         </p>
 
                         <p className="mt-1 text-xs text-slate-500">
-                          {formatTime(
-                            order.createdAt
-                          )}
+                          {formatTime(order.createdAt)}
                         </p>
                       </div>
 
@@ -422,8 +426,7 @@ export default function CashierPage() {
                       <p className="mt-1 text-lg font-bold">
                         {order.tableId?.name ||
                           `Table ${
-                            order.tableId
-                              ?.number || "-"
+                            order.tableId?.number || "-"
                           }`}
                       </p>
                     </div>
@@ -436,9 +439,7 @@ export default function CashierPage() {
                             Subtotal
                           </span>
 
-                          <span>
-                            ₹{order.subtotal}
-                          </span>
+                          <span>₹{order.subtotal}</span>
                         </div>
 
                         <div className="flex justify-between">
@@ -446,23 +447,15 @@ export default function CashierPage() {
                             Tax
                           </span>
 
-                          <span>
-                            ₹{order.tax}
-                          </span>
+                          <span>₹{order.tax}</span>
                         </div>
 
-                        {order.discount >
-                          0 && (
+                        {order.discount > 0 && (
                           <div className="flex justify-between text-emerald-600">
-                            <span>
-                              Discount
-                            </span>
+                            <span>Discount</span>
 
                             <span>
-                              -₹
-                              {
-                                order.discount
-                              }
+                              -₹{order.discount}
                             </span>
                           </div>
                         )}
@@ -489,10 +482,7 @@ export default function CashierPage() {
                             </p>
 
                             <p className="font-semibold">
-                              #
-                              {
-                                bill.billNumber
-                              }
+                              #{bill.billNumber}
                             </p>
                           </div>
 
@@ -512,9 +502,7 @@ export default function CashierPage() {
                         {bill.paymentMethod && (
                           <p className="mt-2 text-xs text-slate-500">
                             Payment:{" "}
-                            {
-                              bill.paymentMethod
-                            }
+                            {bill.paymentMethod}
                           </p>
                         )}
                       </div>
@@ -526,13 +514,9 @@ export default function CashierPage() {
                         <button
                           type="button"
                           onClick={() =>
-                            generateBill(
-                              order._id
-                            )
+                            generateBill(order._id)
                           }
-                          disabled={
-                            isProcessing
-                          }
+                          disabled={isProcessing}
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {isProcessing ? (
@@ -545,18 +529,14 @@ export default function CashierPage() {
                             </>
                           ) : (
                             <>
-                              <Receipt
-                                size={17}
-                              />
+                              <Receipt size={17} />
                               Generate Bill
                             </>
                           )}
                         </button>
                       ) : isPaid ? (
                         <div className="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-                          <CheckCircle2
-                            size={17}
-                          />
+                          <CheckCircle2 size={17} />
                           Payment Completed
                         </div>
                       ) : (
@@ -569,13 +549,9 @@ export default function CashierPage() {
                             <PaymentButton
                               label="Cash"
                               icon={
-                                <IndianRupee
-                                  size={16}
-                                />
+                                <IndianRupee size={16} />
                               }
-                              disabled={
-                                isProcessing
-                              }
+                              disabled={isProcessing}
                               onClick={() =>
                                 recordPayment(
                                   bill._id,
@@ -588,13 +564,9 @@ export default function CashierPage() {
                             <PaymentButton
                               label="UPI"
                               icon={
-                                <Wallet
-                                  size={16}
-                                />
+                                <Wallet size={16} />
                               }
-                              disabled={
-                                isProcessing
-                              }
+                              disabled={isProcessing}
                               onClick={() =>
                                 recordPayment(
                                   bill._id,
@@ -607,13 +579,9 @@ export default function CashierPage() {
                             <PaymentButton
                               label="Card"
                               icon={
-                                <CreditCard
-                                  size={16}
-                                />
+                                <CreditCard size={16} />
                               }
-                              disabled={
-                                isProcessing
-                              }
+                              disabled={isProcessing}
                               onClick={() =>
                                 recordPayment(
                                   bill._id,
@@ -626,13 +594,9 @@ export default function CashierPage() {
                             <PaymentButton
                               label="Other"
                               icon={
-                                <Receipt
-                                  size={16}
-                                />
+                                <Receipt size={16} />
                               }
-                              disabled={
-                                isProcessing
-                              }
+                              disabled={isProcessing}
                               onClick={() =>
                                 recordPayment(
                                   bill._id,
