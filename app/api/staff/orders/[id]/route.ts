@@ -3,6 +3,12 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Order from "@/models/Order";
 
+const allowedRoles = [
+  "WAITER",
+  "RESTAURANT_OWNER",
+  "MANAGER",
+];
+
 export async function PATCH(
   request: Request,
   context: {
@@ -12,10 +18,33 @@ export async function PATCH(
   try {
     const session = await auth();
 
-    if (!session?.user?.restaurantId) {
+    if (!session?.user) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        {
+          success: false,
+          error: "Unauthorized",
+        },
         { status: 401 }
+      );
+    }
+
+    if (!session.user.restaurantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Restaurant not found",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "You do not have permission to update staff orders",
+        },
+        { status: 403 }
       );
     }
 
@@ -26,7 +55,10 @@ export async function PATCH(
 
     if (!["SERVED", "COMPLETED"].includes(status)) {
       return NextResponse.json(
-        { error: "Invalid status" },
+        {
+          success: false,
+          error: "Invalid status",
+        },
         { status: 400 }
       );
     }
@@ -40,7 +72,10 @@ export async function PATCH(
 
     if (!order) {
       return NextResponse.json(
-        { error: "Order not found" },
+        {
+          success: false,
+          error: "Order not found",
+        },
         { status: 404 }
       );
     }
@@ -51,6 +86,7 @@ export async function PATCH(
     ) {
       return NextResponse.json(
         {
+          success: false,
           error: `Order must be READY before it can be SERVED. Current status: ${order.status}`,
         },
         { status: 400 }
@@ -63,6 +99,7 @@ export async function PATCH(
     ) {
       return NextResponse.json(
         {
+          success: false,
           error: `Order must be SERVED before it can be COMPLETED. Current status: ${order.status}`,
         },
         { status: 400 }
@@ -86,6 +123,7 @@ export async function PATCH(
 
     return NextResponse.json(
       {
+        success: false,
         error: "Failed to update order status",
       },
       { status: 500 }
