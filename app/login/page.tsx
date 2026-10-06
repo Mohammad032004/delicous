@@ -51,9 +51,8 @@ export default function LoginPage() {
       } else if (role === "WAITER") {
         window.location.href = "/staff";
       } else if (role === "CASHIER") {
-        window.location.href =
-          "/dashboard/billing";
-      } else {
+  window.location.href = "/cashier";
+} else {
         // RESTAURANT_OWNER and MANAGER
         window.location.href = "/dashboard";
       }

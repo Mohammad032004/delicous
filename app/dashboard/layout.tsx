@@ -7,6 +7,7 @@ import {
   ShoppingCart,
   ChefHat,
   Users,
+  Receipt,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -71,7 +72,11 @@ export default async function DashboardLayout({
             icon={<ChefHat size={18} />}
             label="Kitchen"
           />
-          
+          <NavItem
+  href="/dashboard/billing"
+  icon={<Receipt size={18} />}
+  label="Billing"
+/>
 
           <NavItem
             href="/dashboard/settings"
