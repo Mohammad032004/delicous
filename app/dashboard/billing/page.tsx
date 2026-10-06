@@ -58,19 +58,10 @@ type PaymentMethod =
 
 export default function BillingPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [bills, setBills] = useState<Record<string, Bill>>(
-    {}
-  );
-
+  const [bills, setBills] = useState<Record<string, Bill>>({});
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState<
-    string | null
-  >(null);
-
-  const [payingBill, setPayingBill] = useState<
-    string | null
-  >(null);
-
+  const [generating, setGenerating] = useState<string | null>(null);
+  const [payingBill, setPayingBill] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   async function fetchOrders() {
@@ -117,7 +108,7 @@ export default function BillingPage() {
       setGenerating(orderId);
       setError("");
 
-      const response = await fetch("/api/bills", {
+      const response = await fetch("/api/bill", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -160,7 +151,7 @@ export default function BillingPage() {
       setError("");
 
       const response = await fetch(
-        `/api/bills/${billId}/payment`,
+        `/api/bill/${billId}/payment`,
         {
           method: "PATCH",
           headers: {
@@ -517,7 +508,8 @@ export default function BillingPage() {
                       }
                       className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {generating === order._id ? (
+                      {generating ===
+                      order._id ? (
                         <>
                           <Loader2
                             size={17}
