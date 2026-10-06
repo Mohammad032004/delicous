@@ -63,6 +63,17 @@ export default function OrdersPage() {
       }
 
       setOrders(data.orders || []);
+
+      // Keep selected order synchronized if modal is open.
+      setSelectedOrder((current) => {
+        if (!current) return null;
+
+        const updatedOrder = (data.orders || []).find(
+          (order: Order) => order._id === current._id
+        );
+
+        return updatedOrder || null;
+      });
     } catch (error) {
       setError(
         error instanceof Error
@@ -76,6 +87,12 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders();
+
+    const interval = setInterval(() => {
+      fetchOrders();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   function getStatusClass(status: string) {
@@ -124,6 +141,7 @@ export default function OrdersPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
+      {/* Header */}
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
           <div>
@@ -148,12 +166,14 @@ export default function OrdersPage() {
       </header>
 
       <section className="mx-auto max-w-7xl px-6 py-6">
+        {/* Error */}
         {error && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {error}
           </div>
         )}
 
+        {/* Loading */}
         {loading ? (
           <div className="flex min-h-[400px] items-center justify-center rounded-2xl border border-slate-200 bg-white">
             <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -165,6 +185,7 @@ export default function OrdersPage() {
             </div>
           </div>
         ) : orders.length === 0 ? (
+          /* Empty State */
           <div className="flex min-h-[400px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white">
             <div className="text-center">
               <ShoppingBag
@@ -182,11 +203,14 @@ export default function OrdersPage() {
             </div>
           </div>
         ) : (
+          /* Orders Table */
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-100 px-5 py-4">
               <p className="text-sm text-slate-500">
                 {orders.length}{" "}
-                {orders.length === 1 ? "order" : "orders"}
+                {orders.length === 1
+                  ? "order"
+                  : "orders"}
               </p>
             </div>
 
@@ -237,6 +261,7 @@ export default function OrdersPage() {
                       }
                       className="cursor-pointer transition hover:bg-slate-50"
                     >
+                      {/* Order */}
                       <td className="px-5 py-4">
                         <p className="font-semibold">
                           #{order.orderNumber}
@@ -247,6 +272,7 @@ export default function OrdersPage() {
                         </p>
                       </td>
 
+                      {/* Table */}
                       <td className="px-5 py-4">
                         <p className="font-medium">
                           {order.tableId?.name ||
@@ -254,10 +280,12 @@ export default function OrdersPage() {
                         </p>
 
                         <p className="text-xs text-slate-400">
-                          {order.tableId?.capacity || 0} seats
+                          {order.tableId?.capacity || 0}{" "}
+                          seats
                         </p>
                       </td>
 
+                      {/* Customer */}
                       <td className="px-5 py-4">
                         <p className="font-medium">
                           {order.customerName ||
@@ -271,6 +299,7 @@ export default function OrdersPage() {
                         )}
                       </td>
 
+                      {/* Items */}
                       <td className="px-5 py-4">
                         <div className="max-w-xs space-y-1">
                           {order.items.map(
@@ -287,12 +316,14 @@ export default function OrdersPage() {
                         </div>
                       </td>
 
+                      {/* Total */}
                       <td className="px-5 py-4">
                         <p className="font-bold">
                           ₹{order.total}
                         </p>
                       </td>
 
+                      {/* Status */}
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusClass(
@@ -303,6 +334,7 @@ export default function OrdersPage() {
                         </span>
                       </td>
 
+                      {/* Payment */}
                       <td className="px-5 py-4">
                         <span
                           className={`text-sm font-semibold ${getPaymentClass(
@@ -313,6 +345,7 @@ export default function OrdersPage() {
                         </span>
                       </td>
 
+                      {/* Time */}
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-1.5 text-sm text-slate-500">
                           <Clock size={14} />
@@ -344,11 +377,15 @@ export default function OrdersPage() {
       {selectedOrder && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-5"
-          onClick={() => setSelectedOrder(null)}
+          onClick={() =>
+            setSelectedOrder(null)
+          }
         >
           <div
             className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) =>
+              event.stopPropagation()
+            }
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between border-b border-slate-200 p-6">
@@ -392,6 +429,24 @@ export default function OrdersPage() {
                   )}`}
                 >
                   {selectedOrder.status}
+                </span>
+              </div>
+
+              {/* Payment */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">
+                  Payment Status
+                </span>
+
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    selectedOrder.paymentStatus ===
+                    "PAID"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-amber-200 bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {selectedOrder.paymentStatus}
                 </span>
               </div>
 
@@ -520,21 +575,6 @@ export default function OrdersPage() {
                     ₹{selectedOrder.total}
                   </span>
                 </div>
-              </div>
-
-              {/* Payment */}
-              <div className="flex items-center justify-between border-t border-slate-200 pt-5">
-                <span className="text-sm text-slate-500">
-                  Payment Status
-                </span>
-
-                <span
-                  className={`font-semibold ${getPaymentClass(
-                    selectedOrder.paymentStatus
-                  )}`}
-                >
-                  {selectedOrder.paymentStatus}
-                </span>
               </div>
             </div>
           </div>
