@@ -6,6 +6,7 @@ import {
   Loader2,
   RefreshCw,
   ShoppingBag,
+  X,
 } from "lucide-react";
 
 interface OrderItem {
@@ -42,6 +43,8 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectedOrder, setSelectedOrder] =
+    useState<Order | null>(null);
 
   async function fetchOrders() {
     try {
@@ -180,6 +183,13 @@ export default function OrdersPage() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <p className="text-sm text-slate-500">
+                {orders.length}{" "}
+                {orders.length === 1 ? "order" : "orders"}
+              </p>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full min-w-[900px]">
                 <thead className="border-b border-slate-200 bg-slate-50">
@@ -222,11 +232,18 @@ export default function OrdersPage() {
                   {orders.map((order) => (
                     <tr
                       key={order._id}
-                      className="transition hover:bg-slate-50"
+                      onClick={() =>
+                        setSelectedOrder(order)
+                      }
+                      className="cursor-pointer transition hover:bg-slate-50"
                     >
                       <td className="px-5 py-4">
                         <p className="font-semibold">
                           #{order.orderNumber}
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-400">
+                          Click for details
                         </p>
                       </td>
 
@@ -322,6 +339,207 @@ export default function OrdersPage() {
           </div>
         )}
       </section>
+
+      {/* Order Details Modal */}
+      {selectedOrder && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-5"
+          onClick={() => setSelectedOrder(null)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-200 p-6">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Order Details
+                </p>
+
+                <h2 className="mt-1 text-2xl font-bold">
+                  #{selectedOrder.orderNumber}
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {new Date(
+                    selectedOrder.createdAt
+                  ).toLocaleString()}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedOrder(null)
+                }
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-6 p-6">
+              {/* Status */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500">
+                  Order Status
+                </span>
+
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClass(
+                    selectedOrder.status
+                  )}`}
+                >
+                  {selectedOrder.status}
+                </span>
+              </div>
+
+              {/* Table */}
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Table
+                </p>
+
+                <p className="mt-1 font-semibold text-slate-900">
+                  {selectedOrder.tableId?.name ||
+                    "Unknown Table"}
+                </p>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Table #
+                  {selectedOrder.tableId?.number} •{" "}
+                  {selectedOrder.tableId?.capacity} seats
+                </p>
+              </div>
+
+              {/* Customer */}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Customer
+                </h3>
+
+                <div className="mt-3 rounded-xl border border-slate-200 p-4">
+                  <p className="font-medium">
+                    {selectedOrder.customerName ||
+                      "Guest"}
+                  </p>
+
+                  {selectedOrder.customerPhone && (
+                    <p className="mt-1 text-sm text-slate-500">
+                      {selectedOrder.customerPhone}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Items */}
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Items
+                </h3>
+
+                <div className="mt-3 space-y-3">
+                  {selectedOrder.items.map(
+                    (item, index) => (
+                      <div
+                        key={`${item.name}-${index}`}
+                        className="flex items-center justify-between rounded-xl border border-slate-200 p-4"
+                      >
+                        <div>
+                          <p className="font-medium">
+                            {item.name}
+                          </p>
+
+                          <p className="mt-1 text-sm text-slate-500">
+                            ₹{item.price} ×{" "}
+                            {item.quantity}
+                          </p>
+                        </div>
+
+                        <p className="font-semibold">
+                          ₹{item.subtotal}
+                        </p>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {/* Customer Notes */}
+              {selectedOrder.customerNotes && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                    Customer Notes
+                  </p>
+
+                  <p className="mt-2 text-sm text-amber-700">
+                    {selectedOrder.customerNotes}
+                  </p>
+                </div>
+              )}
+
+              {/* Bill Summary */}
+              <div className="rounded-xl bg-slate-50 p-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">
+                    Subtotal
+                  </span>
+
+                  <span className="font-medium">
+                    ₹{selectedOrder.subtotal}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex justify-between text-sm">
+                  <span className="text-slate-500">
+                    Tax
+                  </span>
+
+                  <span className="font-medium">
+                    ₹{selectedOrder.tax}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex justify-between text-sm">
+                  <span className="text-slate-500">
+                    Discount
+                  </span>
+
+                  <span className="font-medium">
+                    -₹{selectedOrder.discount}
+                  </span>
+                </div>
+
+                <div className="mt-4 flex justify-between border-t border-slate-200 pt-4">
+                  <span className="font-semibold">
+                    Total
+                  </span>
+
+                  <span className="text-xl font-bold">
+                    ₹{selectedOrder.total}
+                  </span>
+                </div>
+              </div>
+
+              {/* Payment */}
+              <div className="flex items-center justify-between border-t border-slate-200 pt-5">
+                <span className="text-sm text-slate-500">
+                  Payment Status
+                </span>
+
+                <span
+                  className={`font-semibold ${getPaymentClass(
+                    selectedOrder.paymentStatus
+                  )}`}
+                >
+                  {selectedOrder.paymentStatus}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
