@@ -5,17 +5,43 @@ import { connectDB } from "@/lib/db";
 import Order from "@/models/Order";
 import Table from "@/models/Table";
 
+const allowedRoles = [
+  "RESTAURANT_OWNER",
+  "MANAGER",
+];
+
 export async function GET() {
   try {
     const session = await auth();
 
-    if (!session?.user?.restaurantId) {
+    if (!session?.user) {
       return NextResponse.json(
         {
           success: false,
           message: "Unauthorized",
         },
         { status: 401 }
+      );
+    }
+
+    if (!session.user.restaurantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Restaurant not found",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to access dashboard statistics",
+        },
+        { status: 403 }
       );
     }
 
