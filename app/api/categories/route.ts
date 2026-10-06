@@ -3,6 +3,11 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Category from "@/models/Category";
 
+const allowedRoles = [
+  "RESTAURANT_OWNER",
+  "MANAGER",
+];
+
 export async function GET() {
   try {
     const session = await auth();
@@ -17,7 +22,18 @@ export async function GET() {
     if (!session.user.restaurantId) {
       return NextResponse.json(
         { success: false, message: "Restaurant not found" },
-        { status: 404 }
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to access categories",
+        },
+        { status: 403 }
       );
     }
 
@@ -64,7 +80,18 @@ export async function POST(request: Request) {
     if (!session.user.restaurantId) {
       return NextResponse.json(
         { success: false, message: "Restaurant not found" },
-        { status: 404 }
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to create categories",
+        },
+        { status: 403 }
       );
     }
 
@@ -75,7 +102,10 @@ export async function POST(request: Request) {
 
     if (!name) {
       return NextResponse.json(
-        { success: false, message: "Category name is required" },
+        {
+          success: false,
+          message: "Category name is required",
+        },
         { status: 400 }
       );
     }
@@ -87,6 +117,16 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
+    if (!slug) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid category name",
+        },
+        { status: 400 }
+      );
+    }
+
     const existingCategory = await Category.findOne({
       restaurantId: session.user.restaurantId,
       slug,
@@ -94,7 +134,10 @@ export async function POST(request: Request) {
 
     if (existingCategory) {
       return NextResponse.json(
-        { success: false, message: "Category already exists" },
+        {
+          success: false,
+          message: "Category already exists",
+        },
         { status: 409 }
       );
     }
