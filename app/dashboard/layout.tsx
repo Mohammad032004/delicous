@@ -6,6 +6,7 @@ import {
   Table2,
   ShoppingCart,
   ChefHat,
+  Users,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -60,10 +61,17 @@ export default async function DashboardLayout({
           />
 
           <NavItem
+           href="/dashboard/staff"
+           icon={<Users size={18} />}
+            label="Staff"
+          />
+
+          <NavItem
             href="/kitchen"
             icon={<ChefHat size={18} />}
             label="Kitchen"
           />
+          
 
           <NavItem
             href="/dashboard/settings"
