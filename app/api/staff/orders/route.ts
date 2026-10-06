@@ -4,6 +4,12 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Order from "@/models/Order";
 
+const allowedRoles = [
+  "WAITER",
+  "RESTAURANT_OWNER",
+  "MANAGER",
+];
+
 export async function GET() {
   try {
     const session = await auth();
@@ -25,6 +31,17 @@ export async function GET() {
           message: "Restaurant not found",
         },
         { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to view staff orders",
+        },
+        { status: 403 }
       );
     }
 
