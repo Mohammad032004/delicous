@@ -6,6 +6,54 @@ import { connectDB } from "@/lib/db";
 import Bill from "@/models/Bill";
 import Order from "@/models/Order";
 
+export async function GET() {
+  try {
+    const session = await auth();
+
+    if (!session?.user?.restaurantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+
+    await connectDB();
+
+    const bills = await Bill.find({
+      restaurantId: session.user.restaurantId,
+    })
+      .populate({
+        path: "orderId",
+        select:
+          "orderNumber status paymentStatus customerName createdAt",
+      })
+      .populate({
+        path: "tableId",
+        select: "name number",
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return NextResponse.json({
+      success: true,
+      bills,
+    });
+  } catch (error) {
+    console.error("Get bills error:", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Failed to load bills",
+      },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -32,9 +80,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
-    const orderId = String(
-      body.orderId ?? ""
-    ).trim();
+    const orderId = String(body.orderId ?? "").trim();
 
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return NextResponse.json(
@@ -69,8 +115,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            "Only completed orders can generate a bill",
+          message: "Only completed orders can generate a bill",
         },
         { status: 400 }
       );
@@ -98,8 +143,7 @@ export async function POST(request: Request) {
       .select("billNumber")
       .lean();
 
-    const billNumber =
-      (lastBill?.billNumber ?? 0) + 1;
+    const billNumber = (lastBill?.billNumber ?? 0) + 1;
 
     const bill = await Bill.create({
       restaurantId: order.restaurantId,
