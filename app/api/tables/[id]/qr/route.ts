@@ -11,6 +11,11 @@ interface RouteContext {
   }>;
 }
 
+const allowedRoles = [
+  "RESTAURANT_OWNER",
+  "MANAGER",
+];
+
 export async function GET(
   request: Request,
   context: RouteContext
@@ -20,15 +25,32 @@ export async function GET(
 
     if (!session?.user) {
       return NextResponse.json(
-        { success: false, message: "Unauthorized" },
+        {
+          success: false,
+          message: "Unauthorized",
+        },
         { status: 401 }
       );
     }
 
     if (!session.user.restaurantId) {
       return NextResponse.json(
-        { success: false, message: "Restaurant not found" },
-        { status: 404 }
+        {
+          success: false,
+          message: "Restaurant not found",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to access table QR codes",
+        },
+        { status: 403 }
       );
     }
 
@@ -44,7 +66,10 @@ export async function GET(
 
     if (!table) {
       return NextResponse.json(
-        { success: false, message: "Table not found" },
+        {
+          success: false,
+          message: "Table not found",
+        },
         { status: 404 }
       );
     }
