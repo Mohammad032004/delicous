@@ -9,6 +9,8 @@ import {
   ShieldCheck,
   Loader2,
   X,
+  Pencil,
+  Power,
 } from "lucide-react";
 
 type StaffRole =
@@ -34,17 +36,37 @@ const roleLabels: Record<StaffRole, string> = {
   CASHIER: "Cashier",
 };
 
+const roleIcons: Record<StaffRole, string> = {
+  MANAGER: "👨‍💼",
+  KITCHEN: "👨‍🍳",
+  WAITER: "🧑‍💼",
+  CASHIER: "💳",
+};
+
 export default function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  const [selectedStaff, setSelectedStaff] =
+    useState<Staff | null>(null);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const [form, setForm] = useState({
+  const [addForm, setAddForm] = useState({
     name: "",
     email: "",
+    phone: "",
+    password: "",
+    role: "WAITER" as StaffRole,
+  });
+
+  const [editForm, setEditForm] = useState({
+    name: "",
     phone: "",
     password: "",
     role: "WAITER" as StaffRole,
@@ -81,20 +103,33 @@ export default function StaffPage() {
     loadStaff();
   }, []);
 
-  function handleChange(
+  function handleAddChange(
     e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement
     >
   ) {
     const { name, value } = e.target;
 
-    setForm((prev) => ({
+    setAddForm((prev) => ({
       ...prev,
       [name]: value,
     }));
   }
 
-  async function handleSubmit(
+  function handleEditChange(
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement
+    >
+  ) {
+    const { name, value } = e.target;
+
+    setEditForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  }
+
+  async function handleAddStaff(
     e: React.FormEvent
   ) {
     e.preventDefault();
@@ -109,7 +144,7 @@ export default function StaffPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify(addForm),
       });
 
       const data = await response.json();
@@ -124,7 +159,7 @@ export default function StaffPage() {
         "Staff member created successfully."
       );
 
-      setForm({
+      setAddForm({
         name: "",
         email: "",
         phone: "",
@@ -132,7 +167,7 @@ export default function StaffPage() {
         role: "WAITER",
       });
 
-      setShowModal(false);
+      setShowAddModal(false);
 
       await loadStaff();
     } catch (err) {
@@ -146,11 +181,138 @@ export default function StaffPage() {
     }
   }
 
-  function getRoleIcon(role: StaffRole) {
-    if (role === "MANAGER") return "👨‍💼";
-    if (role === "KITCHEN") return "👨‍🍳";
-    if (role === "WAITER") return "🧑‍💼";
-    return "💳";
+  function openEditModal(member: Staff) {
+    setSelectedStaff(member);
+
+    setEditForm({
+      name: member.name,
+      phone: member.phone || "",
+      password: "",
+      role: member.role,
+    });
+
+    setError("");
+    setSuccess("");
+    setShowEditModal(true);
+  }
+
+  async function handleEditStaff(
+    e: React.FormEvent
+  ) {
+    e.preventDefault();
+
+    if (!selectedStaff) return;
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const payload: {
+        name: string;
+        phone: string;
+        role: StaffRole;
+        password?: string;
+      } = {
+        name: editForm.name,
+        phone: editForm.phone,
+        role: editForm.role,
+      };
+
+      if (editForm.password.trim()) {
+        payload.password =
+          editForm.password;
+      }
+
+      const response = await fetch(
+        `/api/staff/${selectedStaff._id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to update staff"
+        );
+      }
+
+      setSuccess(
+        "Staff member updated successfully."
+      );
+
+      setShowEditModal(false);
+      setSelectedStaff(null);
+
+      await loadStaff();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to update staff"
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleStaffStatus(
+    member: Staff
+  ) {
+    try {
+      setError("");
+      setSuccess("");
+
+      const response = await fetch(
+        `/api/staff/${member._id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            isActive: !member.isActive,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Failed to update staff status"
+        );
+      }
+
+      setSuccess(
+        member.isActive
+          ? `${member.name} has been deactivated.`
+          : `${member.name} has been activated.`
+      );
+
+      await loadStaff();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to update staff status"
+      );
+    }
+  }
+
+  function closeModals() {
+    if (saving) return;
+
+    setShowAddModal(false);
+    setShowEditModal(false);
+    setSelectedStaff(null);
   }
 
   return (
@@ -158,21 +320,19 @@ export default function StaffPage() {
       <div className="mx-auto max-w-7xl">
         {/* Header */}
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
-                <Users size={22} />
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-black text-white">
+              <Users size={22} />
+            </div>
 
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Staff Management
-                </h1>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Staff Management
+              </h1>
 
-                <p className="text-sm text-gray-500">
-                  Manage your restaurant team
-                </p>
-              </div>
+              <p className="text-sm text-gray-500">
+                Manage your restaurant team
+              </p>
             </div>
           </div>
 
@@ -180,7 +340,7 @@ export default function StaffPage() {
             onClick={() => {
               setError("");
               setSuccess("");
-              setShowModal(true);
+              setShowAddModal(true);
             }}
             className="flex items-center justify-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-semibold text-white transition hover:bg-gray-800"
           >
@@ -243,7 +403,7 @@ export default function StaffPage() {
           </div>
         </div>
 
-        {/* Staff list */}
+        {/* Staff List */}
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
           <div className="border-b border-gray-200 px-6 py-5">
             <h2 className="font-semibold text-gray-900">
@@ -281,7 +441,9 @@ export default function StaffPage() {
               </p>
 
               <button
-                onClick={() => setShowModal(true)}
+                onClick={() =>
+                  setShowAddModal(true)
+                }
                 className="mt-5 flex items-center gap-2 rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white"
               >
                 <UserPlus size={17} />
@@ -293,11 +455,11 @@ export default function StaffPage() {
               {staff.map((member) => (
                 <div
                   key={member._id}
-                  className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-center md:justify-between"
+                  className="flex flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-lg">
-                      {getRoleIcon(member.role)}
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-lg">
+                      {roleIcons[member.role]}
                     </div>
 
                     <div>
@@ -321,30 +483,48 @@ export default function StaffPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-700">
                       {roleLabels[member.role]}
                     </span>
 
                     <span
-                      className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
                         member.isActive
                           ? "bg-green-50 text-green-700"
                           : "bg-gray-100 text-gray-500"
                       }`}
                     >
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          member.isActive
-                            ? "bg-green-500"
-                            : "bg-gray-400"
-                        }`}
-                      />
-
                       {member.isActive
                         ? "Active"
                         : "Inactive"}
                     </span>
+
+                    <button
+                      onClick={() =>
+                        openEditModal(member)
+                      }
+                      className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+                    >
+                      <Pencil size={14} />
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        toggleStaffStatus(member)
+                      }
+                      className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                        member.isActive
+                          ? "border border-red-200 text-red-600 hover:bg-red-50"
+                          : "border border-green-200 text-green-600 hover:bg-green-50"
+                      }`}
+                    >
+                      <Power size={14} />
+                      {member.isActive
+                        ? "Deactivate"
+                        : "Activate"}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -354,7 +534,7 @@ export default function StaffPage() {
       </div>
 
       {/* Add Staff Modal */}
-      {showModal && (
+      {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-5">
@@ -364,12 +544,12 @@ export default function StaffPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Create login credentials for your staff
+                  Create login credentials
                 </p>
               </div>
 
               <button
-                onClick={() => setShowModal(false)}
+                onClick={closeModals}
                 className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
               >
                 <X size={20} />
@@ -377,130 +557,234 @@ export default function StaffPage() {
             </div>
 
             <form
-              onSubmit={handleSubmit}
+              onSubmit={handleAddStaff}
               className="space-y-5 p-6"
             >
-              {/* Name */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Full Name
-                </label>
+              <FormInput
+                label="Full Name"
+                name="name"
+                value={addForm.name}
+                onChange={handleAddChange}
+                placeholder="Enter staff name"
+                required
+              />
 
-                <input
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  placeholder="Enter staff name"
-                  required
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-black"
-                />
+              <FormInput
+                label="Email"
+                name="email"
+                type="email"
+                value={addForm.email}
+                onChange={handleAddChange}
+                placeholder="staff@example.com"
+                required
+              />
+
+              <FormInput
+                label="Phone"
+                name="phone"
+                value={addForm.phone}
+                onChange={handleAddChange}
+                placeholder="Enter phone number"
+              />
+
+              <RoleSelect
+                value={addForm.role}
+                onChange={handleAddChange}
+                name="role"
+              />
+
+              <FormInput
+                label="Temporary Password"
+                name="password"
+                type="password"
+                value={addForm.password}
+                onChange={handleAddChange}
+                placeholder="Minimum 8 characters"
+                minLength={8}
+                required
+              />
+
+              <SubmitButton
+                saving={saving}
+                text="Create Staff Account"
+              />
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Staff Modal */}
+      {showEditModal && selectedStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-5">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Edit Staff Member
+                </h2>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  {selectedStaff.email}
+                </p>
               </div>
 
-              {/* Email */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Email
-                </label>
-
-                <input
-                  name="email"
-                  type="email"
-                  value={form.email}
-                  onChange={handleChange}
-                  placeholder="staff@example.com"
-                  required
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-black"
-                />
-              </div>
-
-              {/* Phone */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Phone
-                </label>
-
-                <input
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleChange}
-                  placeholder="Enter phone number"
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-black"
-                />
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Role
-                </label>
-
-                <select
-                  name="role"
-                  value={form.role}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black"
-                >
-                  <option value="MANAGER">
-                    Manager
-                  </option>
-
-                  <option value="KITCHEN">
-                    Kitchen
-                  </option>
-
-                  <option value="WAITER">
-                    Waiter
-                  </option>
-
-                  <option value="CASHIER">
-                    Cashier
-                  </option>
-                </select>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Temporary Password
-                </label>
-
-                <input
-                  name="password"
-                  type="password"
-                  value={form.password}
-                  onChange={handleChange}
-                  placeholder="Minimum 8 characters"
-                  minLength={8}
-                  required
-                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-black"
-                />
-              </div>
-
-              {/* Submit */}
               <button
-                type="submit"
-                disabled={saving}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={closeModals}
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
               >
-                {saving ? (
-                  <>
-                    <Loader2
-                      size={18}
-                      className="animate-spin"
-                    />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck size={18} />
-                    Create Staff Account
-                  </>
-                )}
+                <X size={20} />
               </button>
+            </div>
+
+            <form
+              onSubmit={handleEditStaff}
+              className="space-y-5 p-6"
+            >
+              <FormInput
+                label="Full Name"
+                name="name"
+                value={editForm.name}
+                onChange={handleEditChange}
+                placeholder="Enter staff name"
+                required
+              />
+
+              <FormInput
+                label="Phone"
+                name="phone"
+                value={editForm.phone}
+                onChange={handleEditChange}
+                placeholder="Enter phone number"
+              />
+
+              <RoleSelect
+                value={editForm.role}
+                onChange={handleEditChange}
+                name="role"
+              />
+
+              <FormInput
+                label="New Password"
+                name="password"
+                type="password"
+                value={editForm.password}
+                onChange={handleEditChange}
+                placeholder="Leave blank to keep current password"
+                minLength={8}
+              />
+
+              <SubmitButton
+                saving={saving}
+                text="Save Changes"
+              />
             </form>
           </div>
         </div>
       )}
     </main>
+  );
+}
+
+function FormInput({
+  label,
+  name,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  required = false,
+  minLength,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => void;
+  placeholder?: string;
+  type?: string;
+  required?: boolean;
+  minLength?: number;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+
+      <input
+        name={name}
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        minLength={minLength}
+        className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-black"
+      />
+    </div>
+  );
+}
+
+function RoleSelect({
+  value,
+  onChange,
+  name,
+}: {
+  value: StaffRole;
+  name: string;
+  onChange: (
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-gray-700">
+        Role
+      </label>
+
+      <select
+        name={name}
+        value={value}
+        onChange={onChange}
+        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm outline-none focus:border-black"
+      >
+        <option value="MANAGER">Manager</option>
+        <option value="KITCHEN">Kitchen</option>
+        <option value="WAITER">Waiter</option>
+        <option value="CASHIER">Cashier</option>
+      </select>
+    </div>
+  );
+}
+
+function SubmitButton({
+  saving,
+  text,
+}: {
+  saving: boolean;
+  text: string;
+}) {
+  return (
+    <button
+      type="submit"
+      disabled={saving}
+      className="flex w-full items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {saving ? (
+        <>
+          <Loader2
+            size={18}
+            className="animate-spin"
+          />
+          Saving...
+        </>
+      ) : (
+        <>
+          <ShieldCheck size={18} />
+          {text}
+        </>
+      )}
+    </button>
   );
 }
