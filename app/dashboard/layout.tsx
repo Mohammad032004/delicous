@@ -19,23 +19,48 @@ export default async function DashboardLayout({
 }) {
   const session = await auth();
 
+  // Not logged in
   if (!session?.user) {
+    redirect("/login");
+  }
+
+  // Only restaurant owners and managers can access
+  // the main restaurant dashboard.
+  const allowedRoles = ["RESTAURANT_OWNER", "MANAGER"];
+
+  if (!allowedRoles.includes(session.user.role)) {
+    if (session.user.role === "KITCHEN") {
+      redirect("/kitchen");
+    }
+
+    if (session.user.role === "WAITER") {
+      redirect("/staff");
+    }
+
+    if (session.user.role === "CASHIER") {
+      redirect("/cashier");
+    }
+
     redirect("/login");
   }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
+      {/* Sidebar */}
       <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-slate-200 bg-white md:block">
-        <div className="border-b border-slate-200 p-6">
-          <h1 className="text-2xl font-bold text-slate-900">
-            Restova
-          </h1>
-
-          <p className="mt-1 text-xs text-slate-500">
-            Restaurant Management
-          </p>
+        {/* Logo */}
+        <div className="flex h-16 items-center border-b border-slate-200 px-6">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              Restova
+            </h1>
+            <p className="text-xs text-slate-500">
+              Restaurant Management
+            </p>
+          </div>
         </div>
 
+        {/* Navigation */}
         <nav className="space-y-1 p-4">
           <NavItem
             href="/dashboard"
@@ -62,21 +87,22 @@ export default async function DashboardLayout({
           />
 
           <NavItem
-           href="/dashboard/staff"
-           icon={<Users size={18} />}
-            label="Staff"
-          />
-
-          <NavItem
             href="/kitchen"
             icon={<ChefHat size={18} />}
             label="Kitchen"
           />
+
           <NavItem
-  href="/dashboard/billing"
-  icon={<Receipt size={18} />}
-  label="Billing"
-/>
+            href="/dashboard/staff"
+            icon={<Users size={18} />}
+            label="Staff"
+          />
+
+          <NavItem
+            href="/dashboard/billing"
+            icon={<Receipt size={18} />}
+            label="Billing"
+          />
 
           <NavItem
             href="/dashboard/settings"
@@ -85,15 +111,24 @@ export default async function DashboardLayout({
           />
         </nav>
 
-        <div className="absolute bottom-0 w-full border-t border-slate-200 p-4">
+        {/* Bottom user section */}
+        <div className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white p-4">
           <div className="mb-3">
             <p className="truncate text-sm font-medium text-slate-900">
-              {session.user.name}
+              {session.user.name || "User"}
             </p>
 
             <p className="truncate text-xs text-slate-500">
               {session.user.email}
             </p>
+
+            <div className="mt-2">
+              <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                {session.user.role === "RESTAURANT_OWNER"
+                  ? "Restaurant Owner"
+                  : "Manager"}
+              </span>
+            </div>
           </div>
 
           <form
@@ -104,35 +139,18 @@ export default async function DashboardLayout({
           >
             <button
               type="submit"
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-red-50 hover:text-red-600"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600"
             >
-              <LogOut size={18} />
-              Logout
+              <LogOut size={17} />
+              Sign out
             </button>
           </form>
         </div>
       </aside>
 
+      {/* Main content */}
       <main className="min-h-screen md:ml-64">
-        <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 px-6 py-4 backdrop-blur">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Dashboard
-              </h2>
-
-              <p className="text-xs text-slate-500">
-                Manage your restaurant
-              </p>
-            </div>
-
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600">
-              {session.user.role}
-            </div>
-          </div>
-        </header>
-
-        <section className="p-6">{children}</section>
+        {children}
       </main>
     </div>
   );
@@ -150,10 +168,10 @@ function NavItem({
   return (
     <a
       href={href}
-      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
     >
       {icon}
-      {label}
+      <span>{label}</span>
     </a>
   );
 }
