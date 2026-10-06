@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   CheckCircle2,
+  CreditCard,
   FileText,
   Loader2,
   RefreshCw,
@@ -44,16 +45,32 @@ interface Bill {
   discount: number;
   total: number;
   paymentStatus: string;
+  paymentMethod?: string;
   status: string;
+  paidAt?: string;
 }
+
+type PaymentMethod =
+  | "CASH"
+  | "UPI"
+  | "CARD"
+  | "OTHER";
 
 export default function BillingPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [bills, setBills] = useState<Record<string, Bill>>({});
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState<string | null>(
-    null
+  const [bills, setBills] = useState<Record<string, Bill>>(
+    {}
   );
+
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState<
+    string | null
+  >(null);
+
+  const [payingBill, setPayingBill] = useState<
+    string | null
+  >(null);
+
   const [error, setError] = useState("");
 
   async function fetchOrders() {
@@ -72,7 +89,9 @@ export default function BillingPage() {
         );
       }
 
-      const completedOrders = (data.orders || []).filter(
+      const completedOrders = (
+        data.orders || []
+      ).filter(
         (order: Order) =>
           order.status === "COMPLETED"
       );
@@ -131,6 +150,52 @@ export default function BillingPage() {
     }
   }
 
+  async function recordPayment(
+    billId: string,
+    orderId: string,
+    paymentMethod: PaymentMethod
+  ) {
+    try {
+      setPayingBill(billId);
+      setError("");
+
+      const response = await fetch(
+        `/api/bills/${billId}/payment`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            paymentMethod,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Failed to record payment"
+        );
+      }
+
+      setBills((currentBills) => ({
+        ...currentBills,
+        [orderId]: data.bill,
+      }));
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to record payment"
+      );
+    } finally {
+      setPayingBill(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <header className="border-b border-slate-200 bg-white">
@@ -141,7 +206,7 @@ export default function BillingPage() {
             </h1>
 
             <p className="mt-1 text-sm text-slate-500">
-              Generate and manage restaurant bills
+              Generate bills and record payments
             </p>
           </div>
 
@@ -186,7 +251,8 @@ export default function BillingPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-400">
-                Completed orders will appear here for billing.
+                Completed orders will appear here
+                for billing.
               </p>
             </div>
           </div>
@@ -200,6 +266,7 @@ export default function BillingPage() {
                   key={order._id}
                   className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                 >
+                  {/* Header */}
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-xs uppercase tracking-wide text-slate-400">
@@ -216,6 +283,7 @@ export default function BillingPage() {
                     </span>
                   </div>
 
+                  {/* Order Info */}
                   <div className="mt-4 rounded-xl bg-slate-50 p-4">
                     <p className="font-semibold">
                       {order.tableId?.name ||
@@ -223,7 +291,8 @@ export default function BillingPage() {
                     </p>
 
                     <p className="mt-1 text-sm text-slate-500">
-                      {order.customerName || "Guest"}
+                      {order.customerName ||
+                        "Guest"}
                     </p>
 
                     <p className="mt-1 text-xs text-slate-400">
@@ -233,6 +302,7 @@ export default function BillingPage() {
                     </p>
                   </div>
 
+                  {/* Items */}
                   <div className="mt-5 space-y-2">
                     {order.items.map(
                       (item, index) => (
@@ -253,6 +323,7 @@ export default function BillingPage() {
                     )}
                   </div>
 
+                  {/* Amount */}
                   <div className="mt-5 border-t border-slate-100 pt-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-500">
@@ -295,24 +366,145 @@ export default function BillingPage() {
                     </div>
                   </div>
 
+                  {/* Bill */}
                   {bill ? (
-                    <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                      <div className="flex items-center gap-2 text-emerald-700">
-                        <CheckCircle2 size={18} />
+                    <div className="mt-5">
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                        <div className="flex items-center gap-2 text-emerald-700">
+                          <CheckCircle2 size={18} />
 
-                        <span className="font-semibold">
-                          Bill Generated
-                        </span>
+                          <span className="font-semibold">
+                            Bill #{bill.billNumber}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 flex justify-between text-sm">
+                          <span className="text-emerald-700">
+                            Payment
+                          </span>
+
+                          <span className="font-semibold text-emerald-800">
+                            {bill.paymentStatus}
+                          </span>
+                        </div>
+
+                        {bill.paymentMethod && (
+                          <div className="mt-1 flex justify-between text-sm">
+                            <span className="text-emerald-700">
+                              Method
+                            </span>
+
+                            <span className="font-semibold text-emerald-800">
+                              {bill.paymentMethod}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      <p className="mt-2 text-sm text-emerald-700">
-                        Bill #{bill.billNumber}
-                      </p>
+                      {/* Payment Controls */}
+                      {bill.paymentStatus !==
+                        "PAID" && (
+                        <div className="mt-4">
+                          <p className="mb-2 text-sm font-semibold text-slate-700">
+                            Record Payment
+                          </p>
 
-                      <p className="mt-1 text-xs text-emerald-600">
-                        Payment:{" "}
-                        {bill.paymentStatus}
-                      </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              disabled={
+                                payingBill ===
+                                bill._id
+                              }
+                              onClick={() =>
+                                recordPayment(
+                                  bill._id,
+                                  order._id,
+                                  "CASH"
+                                )
+                              }
+                              className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              <CreditCard
+                                size={15}
+                              />
+                              Cash
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                payingBill ===
+                                bill._id
+                              }
+                              onClick={() =>
+                                recordPayment(
+                                  bill._id,
+                                  order._id,
+                                  "UPI"
+                                )
+                              }
+                              className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              UPI
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                payingBill ===
+                                bill._id
+                              }
+                              onClick={() =>
+                                recordPayment(
+                                  bill._id,
+                                  order._id,
+                                  "CARD"
+                                )
+                              }
+                              className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              Card
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                payingBill ===
+                                bill._id
+                              }
+                              onClick={() =>
+                                recordPayment(
+                                  bill._id,
+                                  order._id,
+                                  "OTHER"
+                                )
+                              }
+                              className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium hover:bg-slate-50 disabled:opacity-50"
+                            >
+                              Other
+                            </button>
+                          </div>
+
+                          {payingBill ===
+                            bill._id && (
+                            <div className="mt-3 flex items-center justify-center gap-2 text-sm text-slate-500">
+                              <Loader2
+                                size={16}
+                                className="animate-spin"
+                              />
+                              Recording payment...
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {bill.paymentStatus ===
+                        "PAID" && (
+                        <div className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700">
+                          ✓ Payment completed
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <button
