@@ -49,10 +49,12 @@ export default function TablesPage() {
 
   async function loadTables() {
     try {
-      setLoading(true);
       setError("");
 
-      const response = await fetch("/api/tables");
+      const response = await fetch("/api/tables", {
+        cache: "no-store",
+      });
+
       const data = await response.json();
 
       if (!response.ok) {
@@ -75,6 +77,12 @@ export default function TablesPage() {
 
   useEffect(() => {
     loadTables();
+
+    const interval = setInterval(() => {
+      loadTables();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   async function handleCreateTable(
@@ -85,7 +93,10 @@ export default function TablesPage() {
     const tableNumber = Number(number);
     const tableCapacity = Number(capacity);
 
-    if (!Number.isInteger(tableNumber) || tableNumber < 1) {
+    if (
+      !Number.isInteger(tableNumber) ||
+      tableNumber < 1
+    ) {
       setError("Enter a valid table number");
       return;
     }
@@ -121,7 +132,10 @@ export default function TablesPage() {
         );
       }
 
-      setTables((current) => [...current, data.table]);
+      setTables((current) => [
+        ...current,
+        data.table,
+      ]);
 
       setNumber("");
       setCapacity("4");
@@ -142,7 +156,10 @@ export default function TablesPage() {
       setError("");
 
       const response = await fetch(
-        `/api/tables/${tableId}/qr`
+        `/api/tables/${tableId}/qr`,
+        {
+          cache: "no-store",
+        }
       );
 
       const data = await response.json();
@@ -358,7 +375,10 @@ export default function TablesPage() {
                         table.status
                       )}`}
                     >
-                      {table.status.replace("_", " ")}
+                      {table.status.replace(
+                        "_",
+                        " "
+                      )}
                     </span>
 
                     <button
@@ -376,6 +396,7 @@ export default function TablesPage() {
                       ) : (
                         <QrCode size={14} />
                       )}
+
                       QR Code
                     </button>
                   </div>

@@ -5,8 +5,10 @@ import {
   CheckCircle2,
   CreditCard,
   FileText,
+  IndianRupee,
   Loader2,
   RefreshCw,
+  Wallet,
 } from "lucide-react";
 
 interface OrderItem {
@@ -32,6 +34,7 @@ interface Order {
   total: number;
   customerName?: string;
   status: string;
+  paymentStatus: string;
   createdAt: string;
   tableId: Table;
 }
@@ -58,10 +61,20 @@ type PaymentMethod =
 
 export default function BillingPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [bills, setBills] = useState<Record<string, Bill>>({});
+  const [bills, setBills] = useState<
+    Record<string, Bill>
+  >({});
+
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState<string | null>(null);
-  const [payingBill, setPayingBill] = useState<string | null>(null);
+
+  const [generating, setGenerating] = useState<
+    string | null
+  >(null);
+
+  const [payingBill, setPayingBill] = useState<
+    string | null
+  >(null);
+
   const [error, setError] = useState("");
 
   async function fetchOrders() {
@@ -99,8 +112,54 @@ export default function BillingPage() {
     }
   }
 
+  async function fetchBills() {
+    try {
+      const response = await fetch("/api/bill", {
+        cache: "no-store",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to load bills"
+        );
+      }
+
+      const billMap: Record<string, Bill> = {};
+
+      for (const bill of data.bills || []) {
+        const orderId =
+          typeof bill.orderId === "string"
+            ? bill.orderId
+            : bill.orderId?._id;
+
+        if (orderId) {
+          billMap[orderId] = bill;
+        }
+      }
+
+      setBills(billMap);
+    } catch (error) {
+      console.error("Bills fetch error:", error);
+    }
+  }
+
+  async function refreshData() {
+    await Promise.all([
+      fetchOrders(),
+      fetchBills(),
+    ]);
+  }
+
   useEffect(() => {
-    fetchOrders();
+    refreshData();
+
+    const interval = setInterval(() => {
+      refreshData();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
 
   async function generateBill(orderId: string) {
@@ -172,10 +231,14 @@ export default function BillingPage() {
         );
       }
 
+      const updatedBill = data.bill as Bill;
+
       setBills((currentBills) => ({
         ...currentBills,
-        [orderId]: data.bill,
+        [orderId]: updatedBill,
       }));
+
+      await fetchOrders();
     } catch (error) {
       setError(
         error instanceof Error
@@ -187,8 +250,23 @@ export default function BillingPage() {
     }
   }
 
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <Loader2
+            size={20}
+            className="animate-spin"
+          />
+          Loading billing panel...
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
+      {/* Header */}
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
           <div>
@@ -203,7 +281,7 @@ export default function BillingPage() {
 
           <button
             type="button"
-            onClick={fetchOrders}
+            onClick={refreshData}
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             <RefreshCw size={16} />
@@ -213,23 +291,14 @@ export default function BillingPage() {
       </header>
 
       <section className="mx-auto max-w-7xl px-6 py-6">
+        {/* Error */}
         {error && (
           <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
             {error}
           </div>
         )}
 
-        {loading ? (
-          <div className="flex min-h-[400px] items-center justify-center rounded-2xl border border-slate-200 bg-white">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <Loader2
-                size={20}
-                className="animate-spin"
-              />
-              Loading completed orders...
-            </div>
-          </div>
-        ) : orders.length === 0 ? (
+        {orders.length === 0 ? (
           <div className="flex min-h-[400px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white">
             <div className="text-center">
               <FileText
@@ -252,13 +321,25 @@ export default function BillingPage() {
             {orders.map((order) => {
               const bill = bills[order._id];
 
+              /*
+               * IMPORTANT:
+               * Once a bill exists, its paymentStatus is
+               * the latest payment state.
+               *
+               * This prevents the top badge from showing
+               * PENDING while the bill below says PAID.
+               */
+              const paymentStatus =
+                bill?.paymentStatus ||
+                order.paymentStatus;
+
               return (
                 <article
                   key={order._id}
                   className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
                 >
                   {/* Header */}
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs uppercase tracking-wide text-slate-400">
                         Order
@@ -269,9 +350,23 @@ export default function BillingPage() {
                       </h2>
                     </div>
 
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      COMPLETED
-                    </span>
+                    <div className="flex flex-col items-end gap-2">
+                      {/* Order Status */}
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        ORDER: {order.status}
+                      </span>
+
+                      {/* Payment Status */}
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                          paymentStatus === "PAID"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-amber-200 bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        PAYMENT: {paymentStatus}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Order Info */}
@@ -282,8 +377,7 @@ export default function BillingPage() {
                     </p>
 
                     <p className="mt-1 text-sm text-slate-500">
-                      {order.customerName ||
-                        "Guest"}
+                      {order.customerName || "Guest"}
                     </p>
 
                     <p className="mt-1 text-xs text-slate-400">
@@ -331,9 +425,7 @@ export default function BillingPage() {
                         Tax
                       </span>
 
-                      <span>
-                        ₹{order.tax}
-                      </span>
+                      <span>₹{order.tax}</span>
                     </div>
 
                     <div className="mt-2 flex justify-between text-sm">
@@ -360,9 +452,25 @@ export default function BillingPage() {
                   {/* Bill */}
                   {bill ? (
                     <div className="mt-5">
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                        <div className="flex items-center gap-2 text-emerald-700">
-                          <CheckCircle2 size={18} />
+                      <div
+                        className={`rounded-xl border p-4 ${
+                          bill.paymentStatus ===
+                          "PAID"
+                            ? "border-emerald-200 bg-emerald-50"
+                            : "border-amber-200 bg-amber-50"
+                        }`}
+                      >
+                        <div
+                          className={`flex items-center gap-2 ${
+                            bill.paymentStatus ===
+                            "PAID"
+                              ? "text-emerald-700"
+                              : "text-amber-700"
+                          }`}
+                        >
+                          <CheckCircle2
+                            size={18}
+                          />
 
                           <span className="font-semibold">
                             Bill #{bill.billNumber}
@@ -370,22 +478,50 @@ export default function BillingPage() {
                         </div>
 
                         <div className="mt-3 flex justify-between text-sm">
-                          <span className="text-emerald-700">
+                          <span
+                            className={
+                              bill.paymentStatus ===
+                              "PAID"
+                                ? "text-emerald-700"
+                                : "text-amber-700"
+                            }
+                          >
                             Payment
                           </span>
 
-                          <span className="font-semibold text-emerald-800">
+                          <span
+                            className={`font-semibold ${
+                              bill.paymentStatus ===
+                              "PAID"
+                                ? "text-emerald-800"
+                                : "text-amber-800"
+                            }`}
+                          >
                             {bill.paymentStatus}
                           </span>
                         </div>
 
                         {bill.paymentMethod && (
                           <div className="mt-1 flex justify-between text-sm">
-                            <span className="text-emerald-700">
+                            <span
+                              className={
+                                bill.paymentStatus ===
+                                "PAID"
+                                  ? "text-emerald-700"
+                                  : "text-amber-700"
+                              }
+                            >
                               Method
                             </span>
 
-                            <span className="font-semibold text-emerald-800">
+                            <span
+                              className={`font-semibold ${
+                                bill.paymentStatus ===
+                                "PAID"
+                                  ? "text-emerald-800"
+                                  : "text-amber-800"
+                              }`}
+                            >
                               {bill.paymentMethod}
                             </span>
                           </div>
@@ -490,6 +626,7 @@ export default function BillingPage() {
                         </div>
                       )}
 
+                      {/* Payment Completed */}
                       {bill.paymentStatus ===
                         "PAID" && (
                         <div className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-center text-sm font-semibold text-emerald-700">
@@ -498,6 +635,7 @@ export default function BillingPage() {
                       )}
                     </div>
                   ) : (
+                    /* Generate Bill */
                     <button
                       type="button"
                       disabled={
