@@ -6,17 +6,43 @@ import { connectDB } from "@/lib/db";
 import Bill from "@/models/Bill";
 import Order from "@/models/Order";
 
+const allowedRoles = [
+  "RESTAURANT_OWNER",
+  "MANAGER",
+  "CASHIER",
+];
+
 export async function GET() {
   try {
     const session = await auth();
 
-    if (!session?.user?.restaurantId) {
+    if (!session?.user) {
       return NextResponse.json(
         {
           success: false,
           message: "Unauthorized",
         },
         { status: 401 }
+      );
+    }
+
+    if (!session.user.restaurantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Restaurant not found",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You do not have permission to view bills",
+        },
+        { status: 403 }
       );
     }
 
@@ -75,6 +101,16 @@ export async function POST(request: Request) {
           message: "Restaurant not found",
         },
         { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You do not have permission to manage bills",
+        },
+        { status: 403 }
       );
     }
 
