@@ -13,9 +13,17 @@ interface OrderRequestItem {
   notes?: string;
 }
 
+const allowedViewRoles = [
+  "RESTAURANT_OWNER",
+  "MANAGER",
+  "KITCHEN",
+  "WAITER",
+  "CASHIER",
+];
+
 /**
  * GET
- * Restaurant dashboard:
+ * Restaurant staff:
  * Returns all orders belonging to the
  * currently logged-in restaurant.
  */
@@ -40,6 +48,16 @@ export async function GET() {
           message: "Restaurant not found",
         },
         { status: 400 }
+      );
+    }
+
+    if (!allowedViewRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You do not have permission to view orders",
+        },
+        { status: 403 }
       );
     }
 
@@ -81,12 +99,15 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const qrToken = String(body.qrToken ?? "").trim();
+
     const customerName = String(
       body.customerName ?? ""
     ).trim();
+
     const customerPhone = String(
       body.customerPhone ?? ""
     ).trim();
+
     const customerNotes = String(
       body.customerNotes ?? ""
     ).trim();
