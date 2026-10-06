@@ -13,6 +13,12 @@ const allowedPaymentMethods = [
   "OTHER",
 ] as const;
 
+const allowedRoles = [
+  "RESTAURANT_OWNER",
+  "MANAGER",
+  "CASHIER",
+];
+
 export async function PATCH(
   request: Request,
   context: {
@@ -22,13 +28,34 @@ export async function PATCH(
   try {
     const session = await auth();
 
-    if (!session?.user?.restaurantId) {
+    if (!session?.user) {
       return NextResponse.json(
         {
           success: false,
           error: "Unauthorized",
         },
         { status: 401 }
+      );
+    }
+
+    if (!session.user.restaurantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Restaurant not found",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Only authorized billing roles can record payments.
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "You do not have permission to record payments",
+        },
+        { status: 403 }
       );
     }
 
@@ -90,7 +117,7 @@ export async function PATCH(
 
     const paidAt = new Date();
 
-    // Mark bill as paid
+    // Mark bill as paid.
     bill.paymentStatus = "PAID";
     bill.paymentMethod = paymentMethod;
     bill.status = "PAID";
@@ -98,7 +125,7 @@ export async function PATCH(
 
     await bill.save();
 
-    // Keep order payment status synchronized
+    // Keep order payment status synchronized.
     await Order.findOneAndUpdate(
       {
         _id: bill.orderId,
@@ -111,7 +138,7 @@ export async function PATCH(
       }
     );
 
-    // Make the table available again
+    // Make the table available again.
     await Table.findOneAndUpdate(
       {
         _id: bill.tableId,
