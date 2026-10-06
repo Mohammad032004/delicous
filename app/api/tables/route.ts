@@ -5,6 +5,11 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Table from "@/models/Table";
 
+const allowedRoles = [
+  "RESTAURANT_OWNER",
+  "MANAGER",
+];
+
 export async function GET() {
   try {
     const session = await auth();
@@ -19,7 +24,18 @@ export async function GET() {
     if (!session.user.restaurantId) {
       return NextResponse.json(
         { success: false, message: "Restaurant not found" },
-        { status: 404 }
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to access tables",
+        },
+        { status: 403 }
       );
     }
 
@@ -65,7 +81,18 @@ export async function POST(request: Request) {
     if (!session.user.restaurantId) {
       return NextResponse.json(
         { success: false, message: "Restaurant not found" },
-        { status: 404 }
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to create tables",
+        },
+        { status: 403 }
       );
     }
 
