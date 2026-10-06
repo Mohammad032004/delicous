@@ -1,73 +1,51 @@
 import { NextResponse } from "next/server";
-import mongoose from "mongoose";
 
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Bill from "@/models/Bill";
+import Order from "@/models/Order";
+import Table from "@/models/Table";
 
-const allowedMethods = [
+const allowedPaymentMethods = [
   "CASH",
   "UPI",
   "CARD",
   "OTHER",
 ] as const;
 
-type PaymentMethod = (typeof allowedMethods)[number];
-
-interface RouteContext {
-  params: Promise<{ id: string }>;
-}
-
 export async function PATCH(
   request: Request,
-  { params }: RouteContext
+  context: {
+    params: Promise<{ id: string }>;
+  }
 ) {
   try {
     const session = await auth();
 
-    if (!session?.user) {
+    if (!session?.user?.restaurantId) {
       return NextResponse.json(
         {
           success: false,
-          message: "Unauthorized",
+          error: "Unauthorized",
         },
         { status: 401 }
       );
     }
 
-    if (!session.user.restaurantId) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Restaurant not found",
-        },
-        { status: 400 }
-      );
-    }
-
-    const { id } = await params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid bill ID",
-        },
-        { status: 400 }
-      );
-    }
+    const { id } = await context.params;
 
     const body = await request.json();
+    const paymentMethod = body.paymentMethod;
 
-    const paymentMethod = String(
-      body.paymentMethod ?? ""
-    ) as PaymentMethod;
-
-    if (!allowedMethods.includes(paymentMethod)) {
+    if (
+      !allowedPaymentMethods.includes(
+        paymentMethod
+      )
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid payment method",
+          error: "Invalid payment method",
         },
         { status: 400 }
       );
@@ -84,7 +62,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           success: false,
-          message: "Bill not found",
+          error: "Bill not found",
         },
         { status: 404 }
       );
@@ -94,7 +72,7 @@ export async function PATCH(
       return NextResponse.json(
         {
           success: false,
-          message: "Cancelled bills cannot be paid",
+          error: "Cancelled bill cannot be paid",
         },
         { status: 400 }
       );
@@ -104,18 +82,47 @@ export async function PATCH(
       return NextResponse.json(
         {
           success: false,
-          message: "Bill is already paid",
+          error: "Bill is already paid",
         },
         { status: 400 }
       );
     }
 
+    const paidAt = new Date();
+
+    // Mark bill as paid
     bill.paymentStatus = "PAID";
     bill.paymentMethod = paymentMethod;
     bill.status = "PAID";
-    bill.paidAt = new Date();
+    bill.paidAt = paidAt;
 
     await bill.save();
+
+    // Keep order payment status synchronized
+    await Order.findOneAndUpdate(
+      {
+        _id: bill.orderId,
+        restaurantId: session.user.restaurantId,
+      },
+      {
+        $set: {
+          paymentStatus: "PAID",
+        },
+      }
+    );
+
+    // Make the table available again
+    await Table.findOneAndUpdate(
+      {
+        _id: bill.tableId,
+        restaurantId: session.user.restaurantId,
+      },
+      {
+        $set: {
+          status: "AVAILABLE",
+        },
+      }
+    );
 
     return NextResponse.json({
       success: true,
@@ -123,15 +130,15 @@ export async function PATCH(
       bill,
     });
   } catch (error) {
-    console.error("Payment update error:", error);
+    console.error(
+      "Payment update error:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Failed to record payment",
+        error: "Failed to record payment",
       },
       { status: 500 }
     );
