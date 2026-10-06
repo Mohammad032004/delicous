@@ -6,6 +6,11 @@ import { connectDB } from "@/lib/db";
 import MenuItem from "@/models/MenuItem";
 import Category from "@/models/Category";
 
+const allowedRoles = [
+  "RESTAURANT_OWNER",
+  "MANAGER",
+];
+
 export async function GET() {
   try {
     const session = await auth();
@@ -20,7 +25,18 @@ export async function GET() {
     if (!session.user.restaurantId) {
       return NextResponse.json(
         { success: false, message: "Restaurant not found" },
-        { status: 404 }
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to access menu items",
+        },
+        { status: 403 }
       );
     }
 
@@ -67,7 +83,18 @@ export async function POST(request: Request) {
     if (!session.user.restaurantId) {
       return NextResponse.json(
         { success: false, message: "Restaurant not found" },
-        { status: 404 }
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to create menu items",
+        },
+        { status: 403 }
       );
     }
 
@@ -78,35 +105,55 @@ export async function POST(request: Request) {
     const categoryId = String(body.categoryId ?? "").trim();
 
     const price = Number(body.price);
-    const preparationTime = Number(body.preparationTime ?? 15);
+    const preparationTime = Number(
+      body.preparationTime ?? 15
+    );
 
     const isVeg = body.isVeg !== false;
     const isFeatured = body.isFeatured === true;
 
     if (!name) {
       return NextResponse.json(
-        { success: false, message: "Menu item name is required" },
+        {
+          success: false,
+          message: "Menu item name is required",
+        },
         { status: 400 }
       );
     }
 
-    if (!categoryId || !mongoose.Types.ObjectId.isValid(categoryId)) {
+    if (
+      !categoryId ||
+      !mongoose.Types.ObjectId.isValid(categoryId)
+    ) {
       return NextResponse.json(
-        { success: false, message: "Valid category is required" },
+        {
+          success: false,
+          message: "Valid category is required",
+        },
         { status: 400 }
       );
     }
 
     if (!Number.isFinite(price) || price < 0) {
       return NextResponse.json(
-        { success: false, message: "Valid price is required" },
+        {
+          success: false,
+          message: "Valid price is required",
+        },
         { status: 400 }
       );
     }
 
-    if (!Number.isFinite(preparationTime) || preparationTime < 0) {
+    if (
+      !Number.isFinite(preparationTime) ||
+      preparationTime < 0
+    ) {
       return NextResponse.json(
-        { success: false, message: "Invalid preparation time" },
+        {
+          success: false,
+          message: "Invalid preparation time",
+        },
         { status: 400 }
       );
     }
@@ -121,7 +168,10 @@ export async function POST(request: Request) {
 
     if (!category) {
       return NextResponse.json(
-        { success: false, message: "Category not found" },
+        {
+          success: false,
+          message: "Category not found",
+        },
         { status: 404 }
       );
     }
@@ -131,6 +181,16 @@ export async function POST(request: Request) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
+    if (!slug) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid menu item name",
+        },
+        { status: 400 }
+      );
+    }
+
     const existingItem = await MenuItem.findOne({
       restaurantId: session.user.restaurantId,
       slug,
@@ -138,7 +198,10 @@ export async function POST(request: Request) {
 
     if (existingItem) {
       return NextResponse.json(
-        { success: false, message: "Menu item already exists" },
+        {
+          success: false,
+          message: "Menu item already exists",
+        },
         { status: 409 }
       );
     }
