@@ -4,17 +4,43 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Restaurant from "@/models/Restaurant";
 
+const allowedRoles = [
+  "RESTAURANT_OWNER",
+  "MANAGER",
+];
+
 export async function GET() {
   try {
     const session = await auth();
 
-    if (!session?.user?.restaurantId) {
+    if (!session?.user) {
       return NextResponse.json(
         {
           success: false,
           message: "Unauthorized",
         },
         { status: 401 }
+      );
+    }
+
+    if (!session.user.restaurantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Restaurant not found",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to access restaurant settings",
+        },
+        { status: 403 }
       );
     }
 
@@ -39,10 +65,7 @@ export async function GET() {
       restaurant,
     });
   } catch (error) {
-    console.error(
-      "Get restaurant error:",
-      error
-    );
+    console.error("Get restaurant error:", error);
 
     return NextResponse.json(
       {
@@ -58,13 +81,34 @@ export async function PATCH(request: Request) {
   try {
     const session = await auth();
 
-    if (!session?.user?.restaurantId) {
+    if (!session?.user) {
       return NextResponse.json(
         {
           success: false,
           message: "Unauthorized",
         },
         { status: 401 }
+      );
+    }
+
+    if (!session.user.restaurantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Restaurant not found",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!allowedRoles.includes(session.user.role)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "You do not have permission to update restaurant settings",
+        },
+        { status: 403 }
       );
     }
 
@@ -127,15 +171,11 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message:
-        "Restaurant settings updated successfully",
+      message: "Restaurant settings updated successfully",
       restaurant,
     });
   } catch (error) {
-    console.error(
-      "Update restaurant error:",
-      error
-    );
+    console.error("Update restaurant error:", error);
 
     return NextResponse.json(
       {
